@@ -1,5 +1,6 @@
 package com.happysnaker.api;
 
+import com.alibaba.fastjson.JSON;
 import com.happysnaker.utils.NumUtil;
 import com.happysnaker.utils.IOUtil;
 
@@ -20,7 +21,7 @@ public class PixivApi {
     /**
      * 能用 HTTP 的就用 HTTP，HTTPS 性能比较低，实验比较大
      */
-    public static final String pidApi = "http://api.lolicon.app/setu/v2";
+    public static final String pidApi = "https://api.lolicon.app/setu/v2";
     public static final String beautifulImageUrl = "https://api.sunweihu.com/api/sjbz/api.php";
     public static final String chickenSoupUrl = "https://api.shadiao.app/chp/";
     public static final String duChickenSoupUrl = "https://api.shadiao.app/du";
@@ -76,6 +77,7 @@ public class PixivApi {
         if (map == null || map.isEmpty()) {
             return -1;
         }
+        System.out.println(JSON.toJSONString(map));
         try {
             return (long) map.get(0).get("pid");
         } catch (ClassCastException e) {

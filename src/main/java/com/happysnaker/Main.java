@@ -12,7 +12,7 @@ public final class Main extends JavaPlugin {
     public static final Main INSTANCE = new Main();
 
     private Main() {
-        super(new JvmPluginDescriptionBuilder("com.happysnaker.HRobot", "1.0.0")
+        super(new JvmPluginDescriptionBuilder("com.happysnaker.HRobot", "3.2.1")
                 .name("HRobot")
                 .author("Happysnaker")
                 .build());

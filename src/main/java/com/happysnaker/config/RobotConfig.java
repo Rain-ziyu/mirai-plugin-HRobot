@@ -84,7 +84,7 @@ public class RobotConfig {
     /**
      * 涩图撤回时间，单位 s
      */
-    public static int pictureWithdrawalTime = 30;
+    public static int pictureWithdrawalTime = 300;
 
     /**
      * 检测自定关键词的相似度，换句话说，当相似度达到 customKeywordSimilarity 时，即认为触发自定义关键词，此项范围: (0, 1.0]

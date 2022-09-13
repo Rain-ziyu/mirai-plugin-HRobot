@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "com.happysnaker"
-version = "1.0-SNAPSHOT"
+version = "3.2.1-SNAPSHOT"
 
 repositories {
     maven("https://maven.aliyun.com/repository/public")
@@ -29,6 +29,7 @@ dependencies{
     implementation("org.apache.commons:commons-lang3:3.12.0")
 
 //    compile group: 'org.yaml', name: 'snakeyaml', version: '1.25'
+    testImplementation(kotlin("script-runtime"))
 
 }
 

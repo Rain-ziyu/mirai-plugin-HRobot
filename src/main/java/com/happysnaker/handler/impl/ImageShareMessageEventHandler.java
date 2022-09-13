@@ -1,6 +1,7 @@
 package com.happysnaker.handler.impl;
 
 
+import com.alibaba.fastjson.JSON;
 import com.happysnaker.api.BingApi;
 import com.happysnaker.api.PixivApi;
 import com.happysnaker.config.RobotConfig;
@@ -74,8 +75,9 @@ public class ImageShareMessageEventHandler extends GroupMessageEventHandler {
                 List<String> tags = getTags(content, tem);
                 //检测到涩图需要自动撤回，因此自定义逻辑处理，处理完返回 null，不需要抽象类的逻辑
                 MessageChain chain = doParseSeImage(event, tags, tem.equals(seImagePlus));
-
-                if (chain != null && !chain.isEmpty() && chain.get(0) instanceof Image) {
+                info(JSON.toJSONString(chain));
+//                if (chain != null && !chain.isEmpty() && chain.get(0) instanceof Image) {
+                if (chain != null && !chain.isEmpty() ) {
                     MessageReceipt<Contact> receipt = event.getSubject().sendMessage(chain);
                     receipt.recallIn(RobotConfig.pictureWithdrawalTime * 1000);
                 } else {
@@ -170,10 +172,14 @@ public class ImageShareMessageEventHandler extends GroupMessageEventHandler {
         // 如果不是高清涩图加上 &web=true，表示请求一张更小的图片
         String api = isPlus ? pixivSearchApi : pixivSearchApi + "&web=true";
         String imgUrl = api.replace("IMGID", String.valueOf(pid));
+        System.out.println(imgUrl);
         info("imgurl = " + imgUrl);
-        return new MessageChainBuilder()
+     /*   return new MessageChainBuilder()
                 .append(uploadImage(event, new URL(imgUrl)
-                )).build();
+                )).build();*/
+//        暂时改为发送网址
+        return new MessageChainBuilder()
+                .append("图片上传受限，图片地址为-》"+imgUrl).build();
     }
 
     /**

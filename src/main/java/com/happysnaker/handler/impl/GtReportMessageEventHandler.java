@@ -22,7 +22,7 @@ import java.util.*;
  * @date 2022/1/16
  * @email happysnaker@foxmail.com
  */
-@handler(priority = 1)
+@handler(priority = 10000)
 public class GtReportMessageEventHandler extends GroupMessageEventHandler {
     public static final String BATTLE_REPORT = "会战报表";
     public static final String FRONTLINE_REPORTING = "前线报道";
@@ -32,11 +32,11 @@ public class GtReportMessageEventHandler extends GroupMessageEventHandler {
     public static final String URGE_KNIFE = "催刀";
     public static final String URGE_KNIFE_ALL = "一键催刀";
     public static final String CHECK_KNIFE = "查刀";
-
+    public static final String SIGN_IN = "社区签到";
+    public static final String SIGN_URL = "https://bigfun.bilibili.com/activity/challenge/11";
     private static final String BATTLE_REPORT_URL = "https://www.bigfun.cn/api/feweb?target=kan-gong-guild-report%2Fa&date=";
     public static final String FRONTLINE_REPORTING_URL = "https://www.bigfun.cn/api/feweb?target=kan-gong-guild-boss-info%2Fa";
     public static final String GET_MEMBER_URL = "https://www.bigfun.cn/api/feweb?target=kan-gong-guild-log-filter/a";
-
     private Set<String> keywords;
 
     public static final int TOTAL_COUNT = 3;
@@ -65,6 +65,7 @@ public class GtReportMessageEventHandler extends GroupMessageEventHandler {
         keywords.add(URGE_KNIFE);
         keywords.add(URGE_KNIFE_ALL);
         keywords.add(CHECK_KNIFE);
+        keywords.add(SIGN_IN);
     }
 
     /**
@@ -116,6 +117,9 @@ public class GtReportMessageEventHandler extends GroupMessageEventHandler {
                 // 查刀
                 else if (content.contains(CHECK_KNIFE)) {
                     return check(event, cookie);
+                } else if (content.contains(SIGN_IN)) {
+                    return OfUtil.ofList(signInAddress(event));
+
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -126,6 +130,17 @@ public class GtReportMessageEventHandler extends GroupMessageEventHandler {
         return OfUtil.ofList(new MessageChainBuilder().append("该群暂未配置相关信息").build());
     }
 
+    /**
+     * 返回签到地址
+     *
+     * @param event
+     * @return
+     */
+    public MessageChain signInAddress(MessageEvent event) {
+
+            return buildMessageChain("哔哩哔哩社区签到地址为："+SIGN_URL);
+
+    }
     public List<MessageChain> check(MessageEvent event, String cookie) throws IOException, FileUploadException {
         String content = getPlantContent(event).replace(CHECK_KNIFE, "").trim();
 

@@ -1,12 +1,10 @@
 package com.happysnaker.starter;
 
 import com.happysnaker.CustomRegistry;
-import com.happysnaker.api.TongZhongApi;
 import com.happysnaker.config.RobotConfig;
 import com.happysnaker.cron.RobotCronTask;
 import com.happysnaker.proxy.MessageHandlerProxy;
-
-import com.happysnaker.utils.*;
+import com.happysnaker.utils.ConfigUtil;
 import net.mamoe.mirai.console.plugin.jvm.JavaPlugin;
 import net.mamoe.mirai.event.GlobalEventChannel;
 import net.mamoe.mirai.event.events.GroupMessageEvent;
@@ -64,8 +62,8 @@ public class HRobotStarter {
         CustomRegistry.registry(instance);
 
 
-        // 启动后台主线程
-        RobotCronTask.cron();
+        // 启动后台定时任务线程
+        RobotCronTask.cronInit();
 
         // 测试
         test();

@@ -1,6 +1,5 @@
 package com.happysnaker.command.impl;
 
-import com.happysnaker.api.PixivApi;
 import com.happysnaker.config.RobotConfig;
 import com.happysnaker.exception.CanNotParseCommandException;
 import com.happysnaker.exception.InsufficientPermissionsException;
@@ -13,9 +12,7 @@ import net.mamoe.mirai.contact.Contact;
 import net.mamoe.mirai.event.events.MessageEvent;
 import net.mamoe.mirai.message.data.MessageChain;
 
-import java.net.URL;
 import java.util.List;
-import java.util.Map;
 
 /**
  * @author Happysnaker
@@ -27,7 +24,6 @@ import java.util.Map;
 public class PeriodCommandMessageEventHandler extends DefaultCommandMessageEventHandlerManager {
 
     public static final String ADD_PERIOD_TASK = "设置定时任务";
-
     public PeriodCommandMessageEventHandler() {
         registerKeywords(ADD_PERIOD_TASK);
     }
@@ -49,13 +45,12 @@ public class PeriodCommandMessageEventHandler extends DefaultCommandMessageEvent
             // 如果永久任务，则允许调用 #保存配置 保存
             if (count == 0) {
                 count = Integer.MAX_VALUE;
-                RobotConfig.periodicTask.add(
-                        OfUtil.ofMap(OfUtil.ofList("hour", "minute", "groupId", "count", "image", "content"), OfUtil.ofList(hour, minute, getGroupId(event), 0, image == 1, keyVal.getValue())
-                        )
-                );
+                RobotConfig.periodicTask.add(OfUtil.ofMap(OfUtil.ofList("hour", "minute", "groupId", "count", "image", "content"),
+                        OfUtil.ofList(hour, minute, getGroupId(event), 0, image == 1, keyVal.getValue())));
             }
             MessageChain message = parseMiraiCode(keyVal.getValue());
             Contact contact = event.getSubject();
+//            有次数限制的任务
             RobotUtil.submitSendMsgTask(hour, minute, count, image == 1, message, contact);
             return buildMessageChainAsList("任务提交成功！");
         } catch (Exception e) {

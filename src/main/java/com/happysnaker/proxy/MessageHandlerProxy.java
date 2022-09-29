@@ -2,10 +2,10 @@ package com.happysnaker.proxy;
 
 import com.happysnaker.config.RobotConfig;
 import com.happysnaker.context.Context;
-import com.happysnaker.intercept.Interceptor;
-import com.happysnaker.intercept.intercept;
 import com.happysnaker.handler.MessageEventHandler;
 import com.happysnaker.handler.handler;
+import com.happysnaker.intercept.Interceptor;
+import com.happysnaker.intercept.intercept;
 import net.mamoe.mirai.event.events.MessageEvent;
 import net.mamoe.mirai.message.data.MessageChain;
 import org.reflections.Reflections;
@@ -18,6 +18,8 @@ import java.util.*;
  * @description
  * @date 2022/1/16
  * @email happysnaker@foxmail.com
+ * 该类用于扫描所有com.happysnaker下的类，将含有handler注解的类加入handlers
+ * 以及扫描intercept注解将其加入interceptors
  */
 public class MessageHandlerProxy implements MessageEventHandler {
     // 扫描所有的类

@@ -1,16 +1,17 @@
 package com.happysnaker.cron;
 
-import com.happysnaker.api.PixivApi;
 import com.happysnaker.config.RobotConfig;
+import com.happysnaker.factory.CustomThreadFactory;
+import com.happysnaker.proxy.TaskProxy;
 import com.happysnaker.utils.RobotUtil;
 import net.mamoe.mirai.Bot;
 import net.mamoe.mirai.contact.Contact;
 import net.mamoe.mirai.message.data.MessageChain;
 
-import java.net.URL;
-import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.*;
 
 /**
  * 机器人后台线程，每 10 分钟执行一次，用户可向此类提交后台任务
@@ -22,22 +23,35 @@ import java.util.concurrent.ScheduledExecutorService;
  * @email happysnaker@foxmail.com
  */
 public class RobotCronTask {
-    public volatile static CopyOnWriteArrayList<Runnable> tasks = new CopyOnWriteArrayList<>();
-    public volatile static Timer service = new Timer();
+    public volatile static ScheduledExecutorService scheduledExecutorService;
 
-    public static final int PERIOD_MINUTE = 30;
+    /**
+     * 用于存放创建对应定时任务之后的Future对象，用于执行指定次数之后停止
+     */
+    public static ConcurrentHashMap<String, Future> futureMap = new ConcurrentHashMap<>();
 
-    public static void cron() throws Exception {
-        // 运行后台线程
-        service.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                RobotConfig.logger.info("cron task running...");
-                for (Runnable task : tasks) {
-                    task.run();
+    /**
+     * 方法cronInit
+     * 作用为：初始化定时任务线程池
+     * 虽然在使用上保证了改scheduledExecutorService的单例，但是为了防止多次调用出现问题，还是使用单例模式封装
+     *
+     * @param
+     * @return void
+     * @throws
+     * @author User
+     */
+    public static void cronInit() throws Exception {
+//        双端检锁+volatile
+        if (scheduledExecutorService == null) {
+            synchronized (RobotCronTask.class) {
+                if (scheduledExecutorService == null) {
+                    // 运行后台线程池，执行定时任务
+                    int corePoolSize = Runtime.getRuntime().availableProcessors();
+                    CustomThreadFactory customThreadFactory = new CustomThreadFactory();
+                    scheduledExecutorService = new ScheduledThreadPoolExecutor(corePoolSize, customThreadFactory);
                 }
             }
-        }, 0, PERIOD_MINUTE * 1000 * 60);
+        }
     }
 
 
@@ -62,17 +76,19 @@ public class RobotCronTask {
             for (Bot instance : instances) {
                 if (instance.getGroups().contains(gid)) {
                     Contact contact = instance.getGroups().getOrFail(gid);
+//                  使用工具类注册定时发送消息任务
                     RobotUtil.submitSendMsgTask(hour, minute, count, image, message, contact);
                 }
             }
         }
     }
 
-    public static void addCronTask(Runnable task) {
-        tasks.add(task);
-    }
-
-    public static void rmCronTask(Runnable task) {
-        tasks.remove(task);
+    //    增加系统定时清理任务，并注册执行
+    public static void addCronTaskAndRegister(TaskProxy task,
+                                              long initialDelay,
+                                              long period,
+                                              TimeUnit unit) {
+        ScheduledFuture<?> scheduledFuture = scheduledExecutorService.scheduleAtFixedRate(task, initialDelay, period, unit);
+        futureMap.put(task.getTaskId(), scheduledFuture);
     }
 }

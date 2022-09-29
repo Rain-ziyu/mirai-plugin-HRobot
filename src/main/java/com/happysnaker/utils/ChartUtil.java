@@ -1,7 +1,10 @@
 package com.happysnaker.utils;
 
+import cn.hutool.core.date.CalendarUtil;
+import cn.hutool.core.date.DateUtil;
 import com.happysnaker.config.RobotConfig;
 import com.happysnaker.cron.RobotCronTask;
+import com.happysnaker.proxy.TaskProxy;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartUtilities;
 import org.jfree.chart.JFreeChart;
@@ -14,12 +17,13 @@ import org.jfree.data.general.DefaultPieDataset;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
-import java.net.URL;
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 图表实用类，为坎公骑冠剑生成会展报表，方法返回文件名
@@ -31,7 +35,7 @@ import java.util.UUID;
 public class ChartUtil {
     static {
         RobotConfig.logger.info("注册后台清理任务...");
-        RobotCronTask.addCronTask(new Runnable() {
+        TaskProxy taskProxy = new TaskProxy() {
             @Override
             public void run() {
                 File file = new File(ConfigUtil.getDataFilePath("img"));
@@ -46,7 +50,12 @@ public class ChartUtil {
                     RobotConfig.logger.info("已清理不要的图片");
                 }
             }
-        });
+        };
+//        定时每天晚上结束时清理
+        long current = DateUtil.current();
+        long end = DateUtil.endOfDay(CalendarUtil.calendar()).getTimeInMillis();
+        long initTime = end - current;
+        RobotCronTask.addCronTaskAndRegister(taskProxy, initTime, 1000 * 60 * 60 * 24, TimeUnit.MILLISECONDS);
     }
 
     public static final String directionPath = ConfigUtil.getDataFilePath("img/");

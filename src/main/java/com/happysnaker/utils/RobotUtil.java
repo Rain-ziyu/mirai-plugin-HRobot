@@ -5,6 +5,7 @@ import com.happysnaker.config.RobotConfig;
 import com.happysnaker.cron.RobotCronTask;
 import com.happysnaker.exception.CanNotSendMessageException;
 import com.happysnaker.exception.FileUploadException;
+import com.happysnaker.proxy.TaskProxy;
 import net.mamoe.mirai.Bot;
 import net.mamoe.mirai.contact.Contact;
 import net.mamoe.mirai.contact.Group;
@@ -22,6 +23,9 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -38,12 +42,13 @@ public class RobotUtil {
 
     /**
      * 用于消息处理失败时记录日志
+     * 修改使用scheduledExecutorService多线程来进行定时任务的执行
      *
      * @param event
      * @param errorMsg
      */
     public static void recordFailLog(MessageEvent event, String errorMsg) {
-        RobotCronTask.service.schedule(new TimerTask() {
+        TaskProxy taskProxy = new TaskProxy() {
             @Override
             public void run() {
                 String filePath = ConfigUtil.getDataFilePath("error.log");
@@ -53,7 +58,10 @@ public class RobotUtil {
                     e.printStackTrace();
                 }
             }
-        }, 0);
+        };
+//        注册并返回执行器
+        ScheduledFuture<?> schedule = RobotCronTask.scheduledExecutorService.schedule(taskProxy, 0, TimeUnit.SECONDS);
+        RobotCronTask.futureMap.put(taskProxy.getTaskId(), schedule);
     }
 
     public static String getLog(MessageEvent event) {
@@ -290,26 +298,17 @@ public class RobotUtil {
         return uploadImage(event.getSubject(), url);
     }
 
-
     /**
-     * 网络图片并上传至腾讯服务器
+     * 设置引用回复，如果失败，则返回 null<br/>
+     * 如果想回复某消息，你可以这样做：chainBuilder.append(getQuoteReply(e))<br/>或者调用父类方法：buildMessageChain(getQuoteReply(e), msg) 以构造一条消息链<br/>或者使用 getQuoteReply 方法回复一条简单文本信息
      *
-     * @param contact 要发送的对象
-     * @param url     网络图片 URL
-     * @return net.mamoe.mirai.message.data.Image
+     * @param event
+     * @return MessageSource
+     * @see #buildMessageChain(Object...)
+     * @see #quoteReply(MessageEvent, String)
      */
-    public static net.mamoe.mirai.message.data.Image uploadImage(Contact contact, URL url) throws FileUploadException {
-        try (InputStream stream = IOUtil.sendAndGetResponseStream(
-                url,
-                "GET",
-                null,
-                null
-        )) {
-            return Contact.uploadImage(contact, stream);
-        } catch (IOException e) {
-            e.printStackTrace();
-            throw new FileUploadException("can not upload the image from the url: " + url + ", cause by " + e.getCause().toString());
-        }
+    public static QuoteReply getQuoteReply(MessageEvent event) {
+        return new QuoteReply(event.getMessage());
     }
 
     /**
@@ -323,18 +322,59 @@ public class RobotUtil {
     }
 
     /**
-     * 设置引用回复，如果失败，则返回 null<br/>
-     * 如果想回复某消息，你可以这样做：chainBuilder.append(getQuoteReply(e))<br/>或者调用父类方法：buildMessageChain(getQuoteReply(e), msg) 以构造一条消息链<br/>或者使用 getQuoteReply 方法回复一条简单文本信息
+     * 提交一条每天定时发送的消息
      *
-     * @param event
-     * @return MessageSource
-     * @see #buildMessageChain(Object...)
-     * @see #quoteReply(MessageEvent, String) 
+     * @param hour      0-23
+     * @param minute    0-60
+     * @param count     需要执行几次，大于等于 1
+     * @param plusImage
+     * @param message   消息
+     * @throws CanNotSendMessageException
      */
-    public static QuoteReply getQuoteReply(MessageEvent event) {
-        return new QuoteReply(event.getMessage());
+    public static void submitSendMsgTask(int hour, int minute, int count, boolean plusImage, MessageChain message, Contact contact) throws CanNotSendMessageException {
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(Calendar.HOUR_OF_DAY, hour);
+        calendar.set(Calendar.MINUTE, minute);
+        calendar.set(Calendar.SECOND, 0);
+        Date time = calendar.getTime();
+        if (time.before(new Date(System.currentTimeMillis()))) {
+            calendar.add(Calendar.DAY_OF_MONTH, 1);
+            time = calendar.getTime();
+        }
+        long nextTimeInMillis = calendar.getTimeInMillis();
+        //        定时任务初始化时间
+        long initDelay = nextTimeInMillis - System.currentTimeMillis();
+        // 保存 count 的容器
+        final PairUtil<Integer, Object> pair = PairUtil.of(count, null);
+        RobotConfig.logger.info("下一次任务执行时间 = " + time);
+        // 为之注册定时任务
+        TaskProxy taskProxy = new TaskProxy() {
+            @Override
+            public void run() {
+                MessageChain msg = message;
+                if (plusImage) {
+                    try {
+                        msg = message.plus(RobotUtil.uploadImage(contact, new URL(PixivApi.beautifulImageUrl)));
+                    } catch (FileUploadException e) {
+                        e.printStackTrace();
+                    } catch (MalformedURLException e) {
+                        e.printStackTrace();
+                    }
+                }
+                contact.sendMessage(msg);
+                pair.setKey(pair.getKey() - 1);
+                if (pair.getKey() <= 0) {
+//                    获取并移除
+                    Future future = RobotCronTask.futureMap.remove(getTaskId());
+                    future.cancel(true);
+                    RobotConfig.logger.info("定时任务执行次数达到阈值，已取消该任务");
+                }
+            }
+        };
+        ScheduledFuture<?> scheduledFuture = RobotCronTask.scheduledExecutorService.scheduleAtFixedRate(taskProxy, initDelay, 1000 * 60 * 60 * 24, TimeUnit.MILLISECONDS);
+        RobotCronTask.futureMap.put(taskProxy.getTaskId(), scheduledFuture);
     }
-    
+
     public static MessageChain quoteReply(MessageEvent event, String msg) {
         return buildMessageChain(getQuoteReply(event), msg);
     }
@@ -409,66 +449,31 @@ public class RobotUtil {
         }
     }
 
-
     /**
-     * 提交一条每天定时发送的消息
+     * 网络图片并上传至腾讯服务器
      *
-     * @param hour      0-23
-     * @param minute    0-60
-     * @param count     需要执行几次，大于等于 1
-     * @param plusImage
-     * @param message   消息
-     * @throws CanNotSendMessageException
+     * @param contact 要发送的对象
+     * @param url     网络图片 URL
+     * @return net.mamoe.mirai.message.data.Image
      */
-    public static void submitSendMsgTask(int hour, int minute, int count, boolean plusImage, MessageChain message, Contact contact) throws CanNotSendMessageException {
-        Calendar calendar = Calendar.getInstance();
-        calendar.set(Calendar.HOUR_OF_DAY, hour);
-        calendar.set(Calendar.MINUTE, minute);
-        calendar.set(Calendar.SECOND, 0);
-        Date time = calendar.getTime();
-        if (time.before(new Date(System.currentTimeMillis()))) {
-            calendar.add(Calendar.DAY_OF_MONTH, 1);
-            time = calendar.getTime();
+    public static net.mamoe.mirai.message.data.Image uploadImage(Contact contact, URL url) throws FileUploadException {
+        try (InputStream stream = IOUtil.sendAndGetResponseStream(url, "GET", null, null)) {
+            return Contact.uploadImage(contact, stream);
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new FileUploadException("can not upload the image from the url: " + url + ", cause by " + e.getCause().toString());
         }
-        // 保存 count 的容器
-        final PairUtil<Integer, Object> pair = PairUtil.of(count, null);
-        RobotConfig.logger.info("下一次任务执行时间 = " + time);
-        RobotCronTask.service.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                MessageChain msg = message;
-                if (plusImage) {
-                    try {
-                        msg = message.plus(RobotUtil.uploadImage(
-                                contact, new URL(PixivApi.beautifulImageUrl)
-                        ));
-                    } catch (FileUploadException e) {
-                        e.printStackTrace();
-                    } catch (MalformedURLException e) {
-                        e.printStackTrace();
-                    }
-                }
-                contact.sendMessage(msg);
-                pair.setKey(pair.getKey() - 1);
-                if (pair.getKey() <= 0) {
-                    this.cancel();
-                    RobotConfig.logger.info("定时任务执行次数达到阈值，已取消该任务");
-                }
-            }
-        }, time, 1000 * 60 * 60 * 24 - 100);
     }
-
 
     /**
      * 提交一条将要发送的消息，此消息将在 waitTime 毫秒后自动发送
-     *
      * @param msg      消息
      * @param contact  发送对象
      * @param waitTime 将要等待的事件
      * @return 返回 future，可以调用 future.cancel 以取消事件
      */
     public static void submitSendMsgTask(MessageChain msg, Contact contact, long waitTime) throws CanNotSendMessageException {
-        RobotCronTask.service.schedule(new TimerTask() {
+        TaskProxy taskProxy = new TaskProxy() {
             @Override
             public void run() {
                 try {
@@ -477,7 +482,9 @@ public class RobotUtil {
                     e.printStackTrace();
                 }
             }
-        }, waitTime);
+        };
+        ScheduledFuture<?> schedule = RobotCronTask.scheduledExecutorService.schedule(taskProxy, waitTime, TimeUnit.MILLISECONDS);
+        RobotCronTask.futureMap.put(taskProxy.getTaskId(), schedule);
     }
 
 
@@ -491,7 +498,7 @@ public class RobotUtil {
      * @return 返回 future，可以调用 future.cancel 以取消事件
      */
     public static void submitSendMsgTaskAtFixRate(MessageChain msg, Contact contact, long initTTime, long waitTime) throws CanNotSendMessageException {
-        RobotCronTask.service.scheduleAtFixedRate(new TimerTask() {
+        TaskProxy taskProxy = new TaskProxy() {
             @Override
             public void run() {
                 try {
@@ -500,7 +507,9 @@ public class RobotUtil {
                     e.printStackTrace();
                 }
             }
-        }, initTTime, waitTime);
+        };
+        ScheduledFuture<?> scheduledFuture = RobotCronTask.scheduledExecutorService.scheduleAtFixedRate(taskProxy, initTTime, waitTime, TimeUnit.MILLISECONDS);
+        RobotCronTask.futureMap.put(taskProxy.getTaskId(), scheduledFuture);
     }
 
 
@@ -537,9 +546,7 @@ public class RobotUtil {
     public static boolean equals(MessageSource source1, MessageSource source2) {
         if (source1 == null && source2 == null) return true;
         if (source1 == null || source2 == null) return false;
-        return source1.getFromId() == source2.getFromId()
-                && source1.getTargetId() == source2.getTargetId()
-                && source1.getTime() == source2.getTime();
+        return source1.getFromId() == source2.getFromId() && source1.getTargetId() == source2.getTargetId() && source1.getTime() == source2.getTime();
     }
 
     public static List<MessageChain> doHelp(MessageEvent event) throws MalformedURLException, FileUploadException {
@@ -550,8 +557,7 @@ public class RobotUtil {
         List<MessageChain> ans = new ArrayList<>();
         ans.add(buildMessageChain("—— HRobot v2.0-beta ——\n", image0));
 
-        String desc1 = "以下为表格关键字及示例，部分关键字需要 @ 机器人才有效。\n" +
-                "主页地址：https://github.com/happysnaker/mirai-plugin-HRobot\n";
+        String desc1 = "以下为表格关键字及示例，部分关键字需要 @ 机器人才有效。\n" + "主页地址：https://github.com/happysnaker/mirai-plugin-HRobot\n";
         Image image1 = uploadImage(event, new URL("https://happysnaker-1306579962.cos.ap-nanjing.myqcloud.com/img/typora/image-20220228130359523.png"));
         Image image2 = uploadImage(event, new URL("https://happysnaker-1306579962.cos.ap-nanjing.myqcloud.com/img/typora/image-20220228131341431.png"));
         Image image3 = uploadImage(event, new URL("https://happysnaker-1306579962.cos.ap-nanjing.myqcloud.com/img/typora/image-20220228131533107.png"));

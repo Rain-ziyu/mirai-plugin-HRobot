@@ -8,17 +8,26 @@ plugins {
     id("net.mamoe.mirai-console") version "2.12.3"
 }
 
+
 group = "com.happysnaker"
 version = "3.2.1-SNAPSHOT"
 
 repositories {
+    mavenLocal()
     maven("https://maven.aliyun.com/repository/public")
     maven("https://repo.mirai.mamoe.net/snapshots")
     mavenCentral()
 }
 
-dependencies{
+dependencies {
+    // https://mvnrepository.com/artifact/commons-io/commons-io
+    implementation("commons-io:commons-io:2.11.0")
+// https://mvnrepository.com/artifact/org.tensorflow/tensorflow-core-platform
+    implementation("org.tensorflow:tensorflow-core-platform:0.4.2")
 
+
+    // https://mvnrepository.com/artifact/junit/junit
+    testImplementation("junit:junit:4.13.2")
     implementation("com.alibaba:fastjson:1.2.76")
     implementation(kotlin("stdlib-jdk8"))
     // https://mvnrepository.com/artifact/org.jfree/jfreechart

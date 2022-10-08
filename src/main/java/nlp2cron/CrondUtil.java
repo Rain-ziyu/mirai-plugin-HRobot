@@ -1,0 +1,30 @@
+package nlp2cron;
+
+import nlp2cron.core.CrondInteface;
+import nlp2cron.factory.CrondFactory;
+
+
+public class CrondUtil {
+    static CrondInteface crondInteface = null;
+
+    static {
+        crondInteface = CrondFactory.getCrondServce(CrondInteface.class);
+    }
+
+
+    public static String toCron(String message) {
+        return crondInteface.toCron(message);
+    }
+
+    public static String toDate(String message) {
+        return crondInteface.toDate(message);
+    }
+
+    public static String toDateTime(String message) {
+        return crondInteface.toDateTime(message);
+    }
+
+    public static String toTime(String message) {
+        return crondInteface.toTime(message);
+    }
+}
